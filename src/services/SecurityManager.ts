@@ -3,28 +3,21 @@ import { config } from '../config/environment';
 import { logger } from '../utils/logger';
 
 export class SecurityManager {
-  private readonly algorithm = 'aes-256-gcm';
-  private readonly keyLength = 32;
-  private readonly ivLength = 16;
+  private readonly algorithm = 'aes-256-cbc';
 
   /**
    * Encrypt sensitive data
    */
   public async encrypt(text: string): Promise<string> {
     try {
-      const key = crypto.scryptSync(config.security.encryptionKey, 'salt', this.keyLength);
-      const iv = crypto.randomBytes(this.ivLength);
+      const key = crypto.scryptSync(config.security.encryptionKey, 'salt', 32);
+      const iv = crypto.randomBytes(16);
 
-      const cipher = crypto.createCipherGCM(this.algorithm, key, iv);
-      cipher.setAAD(Buffer.from('crossmint-discord-bot'));
-
+      const cipher = crypto.createCipher(this.algorithm, key);
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
 
-      // Get the auth tag for GCM mode
-      const tag = cipher.getAuthTag();
-
-      return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
+      return `${iv.toString('hex')}:${encrypted}`;
     } catch (error) {
       logger.error('Encryption failed:', error);
       throw new Error('Failed to encrypt data');
@@ -36,18 +29,13 @@ export class SecurityManager {
    */
   public async decrypt(encryptedData: string): Promise<string> {
     try {
-      const [ivHex, tagHex, encrypted] = encryptedData.split(':');
-      if (!ivHex || !tagHex || !encrypted) {
+      const [ivHex, encrypted] = encryptedData.split(':');
+      if (!ivHex || !encrypted) {
         throw new Error('Invalid encrypted data format');
       }
 
-      const key = crypto.scryptSync(config.security.encryptionKey, 'salt', this.keyLength);
-      const iv = Buffer.from(ivHex, 'hex');
-      const tag = Buffer.from(tagHex, 'hex');
-
-      const decipher = crypto.createDecipherGCM(this.algorithm, key, iv);
-      decipher.setAAD(Buffer.from('crossmint-discord-bot'));
-      decipher.setAuthTag(tag);
+      const key = crypto.scryptSync(config.security.encryptionKey, 'salt', 32);
+      const decipher = crypto.createDecipher(this.algorithm, key);
 
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');

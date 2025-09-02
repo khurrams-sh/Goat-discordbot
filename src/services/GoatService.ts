@@ -1,8 +1,6 @@
-// import { getOnChainTools } from '@goat-sdk/adapter-vercel-ai'; // Temporarily disabled due to abstract class issues
-import { erc20 } from '@goat-sdk/plugin-erc20';
-import { uniswap } from '@goat-sdk/plugin-uniswap';
-import { crossmint } from '@goat-sdk/crossmint';
-import { crossmintHeadlessCheckout } from '@goat-sdk/plugin-crossmint-headless-checkout';
+import { createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { mainnet } from 'viem/chains';
 import { logger } from '../utils/logger';
 import { WalletProvider } from '../types/wallet';
 
@@ -13,49 +11,82 @@ export interface GoatToolsOptions {
 
 export class GoatService {
   private tools: any[] = [];
+  private walletClient: any;
 
   /**
-   * Initialize GOAT SDK tools for a specific wallet provider
+   * Initialize real blockchain tools with viem integration
    */
   public async initializeTools(options: GoatToolsOptions): Promise<any[]> {
     try {
-      const { walletProvider, plugins = ['erc20', 'uniswap', 'crossmint'] } = options;
+      const { walletProvider } = options;
 
-      // For now, create a simple wallet mock until proper GOAT SDK wallet implementation is available
-      // This will be replaced with actual GOAT SDK wallet once concrete implementations are available
-      // const wallet = { ... } // Wallet object prepared but not used until GOAT SDK concrete classes are available
+      // Create real viem wallet client
+      const account = privateKeyToAccount(walletProvider.privateKey as `0x${string}`);
+      this.walletClient = createWalletClient({
+        account,
+        chain: mainnet,
+        transport: http(walletProvider.rpcUrl)
+      });
 
-            // Initialize plugins based on user preferences
-      const pluginInstances = [];
+      // Create blockchain tools compatible with GOAT SDK patterns
+      this.tools = [
+        {
+          name: 'sendETH',
+          description: 'Send ETH to an address',
+          parameters: {
+            to: 'string',
+            amount: 'string'
+          },
+          execute: async (params: { to: string; amount: string }) => {
+            const { request } = await this.walletClient.simulateContract({
+              account,
+              address: params.to,
+              value: BigInt(parseFloat(params.amount) * 1e18),
+              data: '0x'
+            });
+            return await this.walletClient.writeContract(request);
+          }
+        },
+        {
+          name: 'getBalance',
+          description: 'Get ETH balance',
+          parameters: {},
+          execute: async () => {
+            const balance = await this.walletClient.getBalance({
+              address: account.address
+            });
+            return {
+              address: account.address,
+              balance: balance.toString(),
+              balanceFormatted: (Number(balance) / 1e18).toFixed(4) + ' ETH'
+            };
+          }
+        },
+        {
+          name: 'estimateGas',
+          description: 'Estimate gas for transaction',
+          parameters: {
+            to: 'string',
+            value: 'string'
+          },
+          execute: async (params: { to: string; value: string }) => {
+            const gas = await this.walletClient.estimateGas({
+              account,
+              to: params.to,
+              value: BigInt(parseFloat(params.value) * 1e18)
+            });
+            return {
+              gasEstimate: gas.toString(),
+              gasLimit: (gas * BigInt(120) / BigInt(100)).toString() // 20% buffer
+            };
+          }
+        }
+      ];
 
-            if (plugins.includes('erc20')) {
-        pluginInstances.push(erc20({ tokens: [] }));
-      }
-
-      if (plugins.includes('uniswap')) {
-        pluginInstances.push(uniswap({
-          apiKey: 'placeholder', // This would need actual Uniswap API key
-          baseUrl: 'https://api.uniswap.org/v1'
-        }));
-      }
-
-      if (plugins.includes('crossmint') && walletProvider.crossmintApiKey) {
-        pluginInstances.push(crossmint(walletProvider.crossmintApiKey));
-        pluginInstances.push(crossmintHeadlessCheckout({
-          apiKey: walletProvider.crossmintApiKey
-        }));
-      }
-
-      // For now, skip actual GOAT SDK tool initialization due to abstract class issues
-      // This will be implemented once concrete wallet classes are available
-      this.tools = [];
-
-      logger.info(`GOAT tools initialization prepared for ${plugins.length} plugins (implementation pending)`);
-
-      logger.info(`Initialized GOAT tools with ${this.tools.length} tools`);
+      logger.info(`Initialized ${this.tools.length} blockchain tools for wallet ${walletProvider.address}`);
       return this.tools;
     } catch (error) {
-      logger.error('Failed to initialize GOAT tools:', error);
+      logger.error('Failed to initialize blockchain tools:', error);
       throw error;
     }
   }

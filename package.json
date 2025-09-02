@@ -22,14 +22,12 @@
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
-    "@goat-sdk/wallet-evm": "^0.3.0",
     "@goat-sdk/adapter-vercel-ai": "^0.2.10",
+    "@goat-sdk/wallet-evm": "^0.3.0",
     "@goat-sdk/plugin-erc20": "^0.2.14",
     "@goat-sdk/plugin-uniswap": "^0.2.16",
-    "@goat-sdk/crossmint": "^0.5.2",
-    "@goat-sdk/plugin-crossmint-headless-checkout": "^0.0.14",
+    "viem": "^2.7.0",
     "dotenv": "^16.3.1",
-    "ethers": "^6.9.0",
     "rate-limiter-flexible": "^5.0.3",
     "winston": "^3.11.0",
     "zod": "^3.22.4"
